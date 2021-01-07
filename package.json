@@ -1,0 +1,15 @@
+{
+  "name": "wysiwig-task",
+  "version": "0.0.1",
+  "description": "JavaScript.Ninja Engineer Task",
+  "main": "modules/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npx http-server"
+  },
+  "author": "Darya Savelova <kuznecova.d.m@gmail.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "http-server": "^0.12.3"
+  }
+}
