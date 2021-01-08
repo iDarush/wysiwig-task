@@ -15,6 +15,7 @@
   grid-area: textarea;
   max-height: 100%;
   overflow-y: scroll;
+  color: #010101;
 }
 
 .editor .edit-area:empty::before {
@@ -36,15 +37,15 @@
 }
 
 .editor .edit-area .header1-text {
-  font-size: 1.5rem;
-  line-height: 2.5rem;
+  font-size: 24px;
+  line-height: 40px;
   font-weight: 500;
   display: block;
 }
 
 .editor .edit-area .header2-text {
-  font-size: 1.2rem;
-  line-height: 2.5rem;
+  font-size: 19px;
+  line-height: 40px;
   font-weight: 500;
   display: block;
   margin: 0;
