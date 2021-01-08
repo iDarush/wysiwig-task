@@ -50,7 +50,7 @@
   margin: 0;
 }
 
-.editor .edit-area > div::before{
+.editor .edit-area > div:empty::before{
   content: "\200B";
 }
 
