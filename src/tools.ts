@@ -1,5 +1,5 @@
 import { TreeNode } from "./nodes";
-import { getNodeSelection } from "./selection";
+import { getNodeSelection, selectionIsEmpty } from "./selection";
 import { buildTree, visitTreeByRange } from "./tree";
 import { Command } from "./types";
 
@@ -30,6 +30,10 @@ export class Tool {
     }
 
     const range = selection.getRangeAt(0);
+    if (selectionIsEmpty(range)) {
+      return;
+    }
+
     const tree = buildTree(this._editorElement);
     // find subtree under user selection
     const [visitedTree] = visitTreeByRange(tree, range);

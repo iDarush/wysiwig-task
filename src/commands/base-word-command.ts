@@ -1,7 +1,7 @@
 import { createTextNode } from "../dom";
 import { Tree, TreeNode } from "../nodes";
 import {
-  emptySelection,
+  defaultSelection,
   UserSelection,
   splitTextBySelection,
 } from "../selection";
@@ -160,7 +160,7 @@ export class BaseWordCommand {
     // if reversion applied only for part of node
     // keep rest of word formatted
     const nodeText = getTextNodeValue(node);
-    const offcet = node.selection || emptySelection();
+    const offcet = node.selection || defaultSelection();
     const parts = splitTextBySelection(nodeText, offcet);
     if (parts.length > 1) {
       this._applyOrReverse(node, tree, true);
@@ -171,7 +171,7 @@ export class BaseWordCommand {
         child,
         tree,
         false,
-        emptySelection()
+        defaultSelection()
       );
       replacement.forEach((element) => {
         const n = tree.cache.get(element);
@@ -240,12 +240,13 @@ export class BaseWordCommand {
     customSelection: UserSelection | null = null
   ) {
     const nodeText = getTextNodeValue(node);
-    const userSelection = customSelection || node.selection || emptySelection();
+    const userSelection =
+      customSelection || node.selection || defaultSelection();
     const parts = splitTextBySelection(nodeText, userSelection);
 
     const createdNodes: Node[] = [];
-    const replacement = parts.map(({ selected: affected, text }) => {
-      const needFormatting = reverse ? !affected : affected;
+    const replacement = parts.map(({ selected, text }) => {
+      const needFormatting = reverse ? !selected : selected;
       const textNode: Node = createTextNode(text);
       createdNodes.push(textNode);
 

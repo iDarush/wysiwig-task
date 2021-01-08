@@ -3,6 +3,13 @@ export interface UserSelection {
   end: number;
 }
 
+export function selectionIsEmpty(range: Range) {
+  return (
+    range.startContainer === range.endContainer &&
+    range.startOffset === range.endOffset
+  );
+}
+
 export function getNodeSelection(node: Node, range: Range): UserSelection {
   const start = node === range.startContainer ? range.startOffset : -1;
   const end = node === range.endContainer ? range.endOffset : -1;
@@ -10,7 +17,7 @@ export function getNodeSelection(node: Node, range: Range): UserSelection {
   return { start, end };
 }
 
-export function emptySelection(): UserSelection {
+export function defaultSelection(): UserSelection {
   return { start: -1, end: -1 };
 }
 
