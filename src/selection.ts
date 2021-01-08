@@ -28,9 +28,9 @@ export function splitTextBySelection(text: string, offcet: UserSelection) {
   }
 
   const parts = [
-    { text: text.substring(0, start), affected: false },
-    { text: text.substring(start, end), affected: true },
-    { text: text.substring(end, text.length), affected: false },
+    { text: text.substring(0, start), selected: false },
+    { text: text.substring(start, end), selected: true },
+    { text: text.substring(end, text.length), selected: false },
   ].filter((p) => !!p.text);
 
   return parts;

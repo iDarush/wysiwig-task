@@ -3,21 +3,24 @@ import { HeaderOneCommandFacade } from "./commands/header-one";
 import { HeaderTwoCommandFacade } from "./commands/header-two";
 import { ItalicCommandFacade } from "./commands/italic";
 
+/**
+ * All defined commands
+ */
 export const CommandsConfig = [
   {
-    selector: ".head-2",
+    toolSelector: ".head-2",
     command: HeaderTwoCommandFacade,
   },
   {
-    selector: ".bold",
+    toolSelector: ".bold",
     command: BoldCommandFacade,
   },
   {
-    selector: ".italic",
+    toolSelector: ".italic",
     command: ItalicCommandFacade,
   },
   {
-    selector: ".head-1",
+    toolSelector: ".head-1",
     command: HeaderOneCommandFacade,
   },
 ];

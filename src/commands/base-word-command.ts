@@ -1,138 +1,180 @@
 import { createTextNode } from "../dom";
-import { processElement, Tree, TreeNode } from "../nodes";
-import { emptySelection, UserSelection, splitTextBySelection } from "../range";
+import { Tree, TreeNode } from "../nodes";
+import {
+  emptySelection,
+  UserSelection,
+  splitTextBySelection,
+} from "../selection";
 import { getTextNodeValue, normalizeText } from "../text";
-import { walkFromNodeDonw } from "../tree";
 
 export class BaseWordCommand {
-  private tagName: string;
-  private synonyms: string[];
-  private className: string;
+  private _tagName: string;
+  private _synonymTags: string[];
+  private _className: string;
 
-  constructor(tag: string, className: string, synonyms: string[] = []) {
-    this.tagName = tag;
-    this.synonyms = synonyms;
-    this.className = className;
+  constructor(tag: string, className: string, synonymTags: string[] = []) {
+    this._tagName = tag;
+    this._synonymTags = synonymTags;
+    this._className = className;
   }
 
-  private makeBlockElement() {
-    const child = document.createElement(this.tagName);
-    child.classList.add(this.className);
+  /**
+   * Make empty formatted node
+   */
+  private _makeBlockElement() {
+    const child = document.createElement(this._tagName);
+    child.classList.add(this._className);
 
     return child;
   }
 
-  private undoBlockElement(block: TreeNode, textNode: TreeNode, tree: Tree) {
-    // just replace with self text content
+  /**
+   * Remove formatting
+   */
+  private _undoBlockElement(block: TreeNode, textNode: TreeNode, tree: Tree) {
     if (block.element === textNode.parent && block.parent) {
-      tree.nodeMap.delete(block.element);
+      // just replace direct parent with self text content
+      tree.cache.delete(block.element);
       block.parent.replaceChild(textNode.element, block.element);
 
+      // try to merge separated text nodes into single one
       normalizeText(textNode.parent, tree);
     } else {
+      // replace tree node with clean tag
       const replacement = document.createElement(this._undoTag());
       Array.from(block.element.childNodes).forEach((child) => {
         replacement.appendChild(child);
       });
 
+      tree.cache.delete(block.element);
+      tree.cache.set(replacement, block);
+
       (block.element as Element).replaceWith(replacement);
-
-      tree.nodeMap.delete(block.element);
-      tree.nodeMap.set(replacement, block);
-
       block.element = replacement;
     }
   }
 
+  /**
+   * Check that node structure is normal form
+   */
   public isNodeNormalizedBlock(node: TreeNode) {
     if (node.type === "block") {
       const element = node.element as Element;
       return (
-        element.nodeName === this.tagName &&
-        element.classList.contains(this.className)
+        element.nodeName === this._tagName &&
+        element.classList.contains(this._className)
       );
     }
 
     return false;
   }
 
+  /**
+   * Check if node formatted
+   * @param node Node
+   * @param tree Whole tree
+   * @param inherited Look at stylesheets or parent tree formatting as well
+   */
   public isNodeFormatted(node: TreeNode, tree: Tree, inherited = true) {
-    let result = this._checkNodeFormatting(node, inherited);
+    let result = this._isNodeFormatted(node, inherited);
     if (!result && inherited) {
-      result = !!this._findClosestParent(node, tree);
+      result = !!this._findClosestFormattedParent(node, tree);
     }
 
     return result;
   }
 
+  /**
+   * If node looks okay we need to try bring it structure to normal form
+   */
   public normalizeBlock(node: TreeNode, tree: Tree) {
     if (
       node.type === "block" &&
       this.isNodeFormatted(node, tree, false) &&
       !this.isNodeNormalizedBlock(node)
     ) {
-      const replacement = this.makeBlockElement();
+      const replacement = this._makeBlockElement();
+
       Array.from(node.element.childNodes).forEach((child) => {
         replacement.appendChild(child);
       });
 
+      tree.cache.delete(node.element);
+      tree.cache.set(replacement, node);
+
       (node.element as Element).replaceWith(replacement);
-
-      tree.nodeMap.delete(node.element);
-      tree.nodeMap.set(replacement, node);
-
       node.element = replacement;
     }
   }
 
+  /**
+   * Check that node can be formatted at all
+   */
   public canBeFormatted(node: TreeNode) {
     return node.type === "text";
   }
 
+  /**
+   * Check that formatting will be applied on this node
+   */
   public willBeFormatted(node: TreeNode, tree: Tree) {
     return !this.isNodeFormatted(node, tree, true);
   }
 
+  /**
+   * Apply formatting
+   */
   public apply(node: TreeNode, tree: Tree) {
     if (!this.canBeFormatted(node) || !this.willBeFormatted(node, tree)) {
       return false;
     }
 
-    this._apply(node, tree);
+    this._applyOrReverse(node, tree);
 
     return true;
   }
 
+  /**
+   * Revert formatting
+   */
   public revert(node: TreeNode, tree: Tree) {
     if (!this.canBeFormatted(node)) {
       return false;
     }
 
-    let formattedParent = this._findClosestParent(node, tree);
+    // node is not formatted at all
+    let formattedParent = this._findClosestFormattedParent(node, tree);
     if (!formattedParent) {
       return;
     }
 
-    const childHaveToStayUnchanged: TreeNode[] = [];
-    walkFromNodeDonw(formattedParent, tree, (n) => {
+    // caiuse we can revert formatting on whole subtree
+    // we have to prevent undo on unselected nodes
+    const childrenHaveToStayUnchanged: TreeNode[] = [];
+    tree.walkFromNodeDonw(formattedParent, (n) => {
       if (node.element !== n.element && this.canBeFormatted(n)) {
-        childHaveToStayUnchanged.push(n);
+        childrenHaveToStayUnchanged.push(n);
       }
     });
 
     // if reversion applied only for part of node
-    // keep rest of word bolded
+    // keep rest of word formatted
     const nodeText = getTextNodeValue(node);
     const offcet = node.selection || emptySelection();
     const parts = splitTextBySelection(nodeText, offcet);
     if (parts.length > 1) {
-      this._apply(node, tree, true);
+      this._applyOrReverse(node, tree, true);
     }
 
-    childHaveToStayUnchanged.forEach((child) => {
-      const replacement = this._apply(child, tree, false, emptySelection());
+    childrenHaveToStayUnchanged.forEach((child) => {
+      const replacement = this._applyOrReverse(
+        child,
+        tree,
+        false,
+        emptySelection()
+      );
       replacement.forEach((element) => {
-        const n = tree.nodeMap.get(element);
+        const n = tree.cache.get(element);
         if (n) {
           n.visited = child.visited;
           n.selection = child.selection;
@@ -140,22 +182,26 @@ export class BaseWordCommand {
       });
     });
 
-    this.undoBlockElement(formattedParent, node, tree);
+    this._undoBlockElement(formattedParent, node, tree);
   }
 
-  private _findClosestParent(node: TreeNode, tree: Tree) {
-    // try to find closest "bolded" parent
-    let boldedNode = node.parent ? tree.nodeMap.get(node.parent) : null;
-    while (boldedNode && !this._checkNodeFormatting(boldedNode, true)) {
-      boldedNode = boldedNode.parent
-        ? tree.nodeMap.get(boldedNode.parent)
+  private _findClosestFormattedParent(node: TreeNode, tree: Tree) {
+    let formattedParent = node.parent ? tree.cache.get(node.parent) : null;
+    while (formattedParent && !this._isNodeFormatted(formattedParent, true)) {
+      formattedParent = formattedParent.parent
+        ? tree.cache.get(formattedParent.parent)
         : null;
     }
 
-    return boldedNode;
+    return formattedParent;
   }
 
-  private _checkNodeFormatting(node: TreeNode, inherited = false) {
+  /**
+   * Try to determine node formatting
+   * @param node Processable node
+   * @param checkStyles Check node stylesheet as well
+   */
+  private _isNodeFormatted(node: TreeNode, checkStyles = false) {
     const element =
       node.type === "block" ? node.element : node.element.parentNode;
 
@@ -163,63 +209,74 @@ export class BaseWordCommand {
       return false;
     }
 
-    const tags = [this.tagName, ...this.synonyms];
+    const tags = [this._tagName, ...this._synonymTags];
 
     if (tags.includes(element.nodeName)) {
       return true;
     }
 
-    if (inherited) {
+    if (checkStyles) {
       const el = element as Element;
       const style = window.getComputedStyle(el);
       return (
-        el.classList.contains(this.className) || this._checkStyles(el, style)
+        el.classList.contains(this._className) || this._checkStyles(el, style)
       );
     }
 
     return false;
   }
 
-  private _apply(
+  /**
+   * Apply or reverse command formatting
+   * @param node Processable node
+   * @param tree Current visited tree
+   * @param reverse Formatting should be reversed
+   * @param customSelection User selection overriding
+   */
+  private _applyOrReverse(
     node: TreeNode,
     tree: Tree,
     reverse = false,
-    customOffcet: UserSelection | null = null
+    customSelection: UserSelection | null = null
   ) {
     const nodeText = getTextNodeValue(node);
-    const offcet = customOffcet || node.selection || emptySelection();
-    const parts = splitTextBySelection(nodeText, offcet);
+    const userSelection = customSelection || node.selection || emptySelection();
+    const parts = splitTextBySelection(nodeText, userSelection);
 
     const createdNodes: Node[] = [];
-    const replacement = parts.map(({ affected, text }) => {
-      const needBold = reverse ? !affected : affected;
+    const replacement = parts.map(({ selected: affected, text }) => {
+      const needFormatting = reverse ? !affected : affected;
       const textNode: Node = createTextNode(text);
-      let newChild = textNode;
-
       createdNodes.push(textNode);
 
-      if (needBold) {
-        newChild = this.makeBlockElement();
+      let newChild = textNode;
+      if (needFormatting) {
+        newChild = this._makeBlockElement();
         newChild.appendChild(textNode);
-        tree.nodeMap.set(newChild, processElement(newChild));
-
+        tree.cache.set(newChild, new TreeNode(newChild));
         createdNodes.push(newChild);
       }
 
-      tree.nodeMap.set(textNode, processElement(textNode));
+      tree.cache.set(textNode, new TreeNode(textNode));
       return newChild;
     });
 
-    tree.nodeMap.delete(node.element);
-    (node.element as Text).replaceWith(...replacement);
+    tree.cache.delete(node.element);
+    (node.element as Element).replaceWith(...replacement);
 
     return createdNodes;
   }
 
+  /**
+   * Try to determine element formatting by it styling
+   */
   protected _checkStyles(element: Element, style: CSSStyleDeclaration) {
     return false;
   }
 
+  /**
+   * When whole block has to be reverted this tag will be used as replacement
+   */
   protected _undoTag() {
     return "DIV";
   }

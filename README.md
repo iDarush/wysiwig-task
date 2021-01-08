@@ -1,5 +1,13 @@
 # Тестовое задание
 
+## Запуск
+
+```
+npm install
+npm start
+```
+Открыть [https://localhost:8080](http://localhost:8080)
+
 ## Задача
 
 Написать логику для [WYSIWYG](https://ru.wikipedia.org/wiki/WYSIWYG), который имеет из функциональности:

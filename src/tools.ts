@@ -1,8 +1,11 @@
 import { TreeNode } from "./nodes";
-import { getNodeSelection } from "./range";
-import { buildTree, visitTreeByRange } from "./tree-builder";
+import { getNodeSelection } from "./selection";
+import { buildTree, visitTreeByRange } from "./tree";
 import { Command } from "./types";
 
+/**
+ * Editor tool
+ */
 export class Tool {
   constructor(
     private _editorElement: HTMLElement,
@@ -28,12 +31,13 @@ export class Tool {
 
     const range = selection.getRangeAt(0);
     const tree = buildTree(this._editorElement);
-    const visitedTree = visitTreeByRange(tree, range);
+    // find subtree under user selection
+    const [visitedTree] = visitTreeByRange(tree, range);
 
     if (visitedTree) {
       const visitedNodes = visitedTree.getVisitedNodes();
       const allowedNodes = visitedNodes.filter((node) => {
-        // save user selection before any dom manipulation
+        // save user selection before any DOM manipulation
         if (node.type === "text") {
           node.selection = getNodeSelection(node.element, range);
         }
@@ -49,13 +53,13 @@ export class Tool {
         this._command.willBeApplied(node, visitedTree)
       );
 
+      // if more than half of selected nodes already formatted
+      // we should undo formatting for them
       const revertTouched = willBeTouchedNodes.length < allowedNodes.length / 2;
       const action = revertTouched ? this._command.revert : this._command.apply;
+      const restoreCaretPostion = saveCaretPosition(this._editorElement);
 
       let visited: TreeNode | undefined = allowedNodes[0];
-
-      const restoreCaret = saveCaretPosition(this._editorElement);
-
       while (visited) {
         action(visited, visitedTree);
         visited.visited = false;
@@ -64,7 +68,7 @@ export class Tool {
           .find((node) => this._command.canBeApplied(node));
       }
 
-      restoreCaret();
+      restoreCaretPostion();
 
       return true;
     }
@@ -85,15 +89,15 @@ function saveCaretPosition(editorElement: HTMLElement) {
     return () => {};
   }
 
-  var range = selection.getRangeAt(0);
+  const range = selection.getRangeAt(0);
   range.setStart(editorElement, 0);
   const text = range.toString();
-  var len = text.length;
+  const len = text.length;
 
   return () => {
     const sel = window.getSelection();
     if (sel) {
-      var pos = getTextNodeAtPosition(editorElement, len);
+      const pos = getTextNodeAtPosition(editorElement, len);
       sel.removeAllRanges();
       const newRange = new Range();
       newRange.setStart(pos.node, pos.position);
@@ -114,6 +118,7 @@ function getTextNodeAtPosition(root: HTMLElement, index: number) {
       return NodeFilter.FILTER_ACCEPT;
     },
   });
+
   const next = treeWalker.nextNode();
   return {
     node: next || root,

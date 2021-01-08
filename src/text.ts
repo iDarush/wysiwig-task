@@ -1,13 +1,16 @@
 import { createTextNode } from "./dom";
 import { Tree, TreeNode } from "./nodes";
 
-function collectTextChildRow(collection: Node[]) {
+/**
+ * Cut text elements in a row
+ */
+function cutTextChildRow(source: Node[]) {
   const result: Node[] = [];
 
-  let child = collection.shift();
+  let child = source.shift();
   while (child && isTextElement(child)) {
     result.push(child);
-    child = collection.shift();
+    child = source.shift();
   }
 
   return result;
@@ -33,8 +36,11 @@ export function getTextNodeValue(node: TreeNode | undefined | null) {
   return "";
 }
 
+/**
+ * Try to merge separated text nodes into single one
+ */
 export function normalizeText(element: Node, tree: Tree) {
-  const node = tree.nodeMap.get(element);
+  const node = tree.cache.get(element);
   if (node && element.childNodes.length > 1) {
     const collection = Array.from(element.childNodes);
     const textNodes = collection.filter((e) => isTextElement(e));
@@ -44,26 +50,27 @@ export function normalizeText(element: Node, tree: Tree) {
     }
 
     let cursor = collection[0];
-    let row = collectTextChildRow(collection);
+    let row = cutTextChildRow(collection);
     while (cursor) {
       if (row.length > 1) {
         let text = "";
         row.forEach((child) => {
           text += getTextElementValue(child);
-          tree.nodeMap.delete(child);
+          tree.cache.delete(child);
 
+          // keep first element as replacement position
           if (cursor !== child) {
             element.removeChild(child);
           }
         });
 
         const textNode = createTextNode(text);
-        tree.nodeMap.set(textNode, node);
+        tree.cache.set(textNode, node);
         cursor.replaceWith(textNode);
       }
 
       cursor = collection[0];
-      row = collectTextChildRow(collection);
+      row = cutTextChildRow(collection);
     }
   }
 }

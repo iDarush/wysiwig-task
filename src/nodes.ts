@@ -1,4 +1,4 @@
-import { UserSelection } from "./range";
+import { UserSelection } from "./selection";
 
 let NODE_ID = 1;
 
@@ -10,8 +10,10 @@ export class TreeNode {
   public isRoot?: boolean;
   public selection?: UserSelection;
 
-  constructor(type: "text" | "block", element: Node) {
+  constructor(element: Node, isRoot = false) {
+    const type = element.nodeType === Node.TEXT_NODE ? "text" : "block";
     this.type = type;
+    this.isRoot = isRoot;
     this.element = element;
     this.visited = false;
     this._id = NODE_ID++;
@@ -21,20 +23,12 @@ export class TreeNode {
     return this.isRoot ? null : this.element.parentNode;
   }
 
-  public get nextSibling(): Node | null {
-    if (!this.isRoot) {
-      return this.element.nextSibling;
+  public get isEmpty() {
+    if (this.type === "text") {
+      return !(this.element as Text).data;
     }
 
-    return null;
-  }
-
-  public get previousSibling(): Node | null {
-    if (!this.isRoot) {
-      return this.element.previousSibling;
-    }
-
-    return null;
+    return !this.element.firstChild;
   }
 
   public visit(value = true) {
@@ -43,37 +37,72 @@ export class TreeNode {
 }
 
 export class Tree {
-  root: TreeNode;
-  nodeMap: Map<Node, TreeNode>;
+  cache: Map<Node, TreeNode>;
 
-  constructor(rootElement: Node) {
-    this.root = processElement(rootElement);
-    this.root.isRoot = true;
-    this.nodeMap = new Map();
-    this.nodeMap.set(rootElement, this.root);
+  constructor() {
+    this.cache = new Map();
+  }
+
+  public get allNodes() {
+    return Array.from(this.cache.values());
   }
 
   public clone() {
-    const result = new Tree(this.root.element);
+    const result = new Tree();
 
-    this.nodeMap.forEach((node, element) => {
-      if (!node.isRoot) {
-        const clonedNode = processElement(element);
-        result.nodeMap.set(element, clonedNode);
-      }
+    this.cache.forEach((_, element) => {
+      const clonedNode = new TreeNode(element);
+      result.cache.set(element, clonedNode);
     });
 
     return result;
   }
 
+  /**
+   * Execute action from specified node to all it descendants
+   */
+  public walkFromNodeUp(node: TreeNode, action: (node: TreeNode) => void) {
+    action(node);
+    let parent = node.parent ? this.cache.get(node.parent) : null;
+    while (parent) {
+      action(parent);
+      parent = parent.parent ? this.cache.get(parent.parent) : null;
+    }
+  }
+
+  /**
+   * Execute action from specified node to all it descendants
+   */
+  public walkFromNodeDonw(node: TreeNode, action: (node: TreeNode) => void) {
+    action(node);
+
+    if (node.element.hasChildNodes()) {
+      Array.from(node.element.childNodes).forEach((element) => {
+        const child = this.cache.get(element);
+        if (child) {
+          this.walkFromNodeDonw(child, action);
+        }
+      });
+    }
+  }
+
+  /**
+   * Set visited state from specified node to all it parents until root
+   */
+  public visitNodeUp(node: TreeNode, value = true) {
+    this.walkFromNodeUp(node, (n) => n.visit(value));
+  }
+
+  /**
+   * Set visited state from specified node to all it descendants
+   */
+  public visitNodeDown(node: TreeNode, value = true) {
+    this.walkFromNodeDonw(node, (n) => n.visit(value));
+  }
+
   public getVisitedNodes() {
-    const nodes = Array.from(this.nodeMap.values());
+    const nodes = this.allNodes;
     const visitedNodes = nodes.filter((node) => node.visited);
     return visitedNodes;
   }
-}
-
-export function processElement(element: Node): TreeNode {
-  const type = element.nodeType === Node.TEXT_NODE ? "text" : "block";
-  return new TreeNode(type, element);
 }

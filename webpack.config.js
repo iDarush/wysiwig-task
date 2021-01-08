@@ -39,7 +39,7 @@ module.exports = {
           to: "styles",
         },
         {
-          from: path.resolve(__dirname, "favicon.ico"),
+          from: path.resolve(__dirname, "./favicon.ico"),
         },
       ],
     }),
