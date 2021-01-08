@@ -25,7 +25,6 @@ export class Editor {
   private _observer: MutationObserver | null = null;
   private _element: HTMLElement | null = null;
   private _commands: Tool[] = [];
-  private _stop = false;
 
   constructor(private _selector: string) {
     this._onMutation = debounce(this._onMutation, 100, this);
